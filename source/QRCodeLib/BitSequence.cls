@@ -7,49 +7,27 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
-'----------------------------------------------------------------------------------------
-' ビット列の生成機能を提供します。
-'----------------------------------------------------------------------------------------
 Option Explicit
 
-Private m_buffer As Dictionary
-
+Private m_buffer As Object ' Is Dictionary
 Private m_bitCounter As Long
 Private m_space      As Long
 
 Private Sub Class_Initialize()
-
-    Set m_buffer = New Dictionary
-    m_bitCounter = 0
-    m_space = 0
-
+    Call Clear
 End Sub
 
-'----------------------------------------------------------------------------------------
-' (概要)
-'  ビット数を取得します。
-'----------------------------------------------------------------------------------------
 Public Property Get Length() As Long
-
     Length = m_bitCounter
-
 End Property
 
-'----------------------------------------------------------------------------------------
-' (概要)
-'  指定のビット数でデータを追加します。
-'
-' (パラメータ)
-'  data      : 追加するデータ
-'  bitLength : データのビット数
-'----------------------------------------------------------------------------------------
+Public Sub Clear()
+    Set m_buffer = CreateObject("Scripting.Dictionary")
+    m_bitCounter = 0
+    m_space = 0
+End Sub
+
 Public Sub Append(ByVal data As Long, ByVal bitLength As Long)
-
-#If [DEBUG] Then
-    Debug.Assert data >= 0
-    Debug.Assert bitLength >= 0
-#End If
-
     Dim remainingLength As Long
     remainingLength = bitLength
 
@@ -81,18 +59,12 @@ Public Sub Append(ByVal data As Long, ByVal bitLength As Long)
             m_space = m_space - remainingLength
             remainingLength = 0
         End If
-        
+
         m_buffer(m_buffer.Count - 1) = temp
     Loop
-
 End Sub
 
-'----------------------------------------------------------------------------------------
-' (概要)
-'  データのバイト配列を返します。
-'----------------------------------------------------------------------------------------
 Public Function GetBytes() As Byte()
-
     Dim ret() As Byte
     ReDim ret(m_buffer.Count - 1)
 
@@ -103,6 +75,4 @@ Public Function GetBytes() As Byte()
     Next
 
     GetBytes = ret
-
 End Function
-

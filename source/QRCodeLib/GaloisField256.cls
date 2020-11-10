@@ -1,37 +1,18 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1  'True
+END
 Attribute VB_Name = "GaloisField256"
-Option Private Module
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
 Option Explicit
 
 Private m_intToExpTable  As Variant
 Private m_expToIntTable  As Variant
 
-Private m_initialized As Boolean
-
-
-Public Function ToExp(ByVal arg As Long) As Long
-
-    Call Initialize
-    ToExp = m_intToExpTable(arg)
-    
-End Function
-
-Public Function ToInt(ByVal arg As Long) As Long
-
-    Call Initialize
-    ToInt = m_expToIntTable(arg)
-    
-End Function
-
-'----------------------------------------------------------------------------------------
-' (概要)
-'  オブジェクトを初期化します。
-'----------------------------------------------------------------------------------------
-Private Sub Initialize()
-
-    If m_initialized Then Exit Sub
-
-    m_initialized = True
-
+Private Sub Class_Initialize()
     m_intToExpTable = Array( _
         -1, 0, 1, 25, 2, 50, 26, 198, 3, 223, 51, 238, 27, 104, 199, 75, 4, 100, 224, 14, 52, 141, _
         239, 129, 28, 193, 105, 248, 200, 8, 76, 113, 5, 138, 101, 47, 225, 36, 15, 33, 53, _
@@ -46,7 +27,7 @@ Private Sub Initialize()
         118, 196, 23, 73, 236, 127, 12, 111, 246, 108, 161, 59, 82, 41, 157, 85, 170, 251, 96, 134, _
         177, 187, 204, 62, 90, 203, 89, 95, 176, 156, 169, 160, 81, 11, 245, 22, 235, 122, 117, _
         44, 215, 79, 174, 213, 233, 230, 231, 173, 232, 116, 214, 244, 234, 168, 80, 88, 175)
-      
+
     m_expToIntTable = Array( _
         1, 2, 4, 8, 16, 32, 64, 128, 29, 58, 116, 232, 205, 135, 19, 38, 76, 152, 45, 90, 180, 117, _
         234, 201, 143, 3, 6, 12, 24, 48, 96, 192, 157, 39, 78, 156, 37, 74, 148, 53, 106, 212, 181, _
@@ -61,5 +42,13 @@ Private Sub Initialize()
         83, 166, 81, 162, 89, 178, 121, 242, 249, 239, 195, 155, 43, 86, 172, 69, 138, 9, 18, 36, 72, 144, _
         61, 122, 244, 245, 247, 243, 251, 235, 203, 139, 11, 22, 44, 88, 176, 125, 250, 233, 207, 131, 27, _
         54, 108, 216, 173, 71, 142, 1)
-
 End Sub
+
+Public Function ToExp(ByVal arg As Long) As Long
+    ToExp = m_intToExpTable(arg)
+End Function
+
+Public Function ToInt(ByVal arg As Long) As Long
+    ToInt = m_expToIntTable(arg)
+End Function
+
