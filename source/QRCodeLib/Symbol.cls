@@ -15,7 +15,8 @@ Option Explicit
     Private Declare Sub MoveMemory Lib "kernel32" Alias "RtlMoveMemory" (ByVal pDest As Long, ByVal pSrc As Long, ByVal sz As Long)
 #End If
 
-Private Const DEFAULT_MODULE_SIZE As Long = 4
+Private Const DEFAULT_MODULE_SIZE As Long = 5
+Private Const MIN_MODULE_SIZE As Long = 2
 
 Private m_parent As Symbols
 
@@ -25,11 +26,11 @@ Private m_currEncoder       As IQRCodeEncoder
 Private m_currEncodingMode  As EncodingMode
 Private m_currVersion       As Long
 
-Private m_dataBitCapacity   As Long
-Private m_dataBitCounter    As Long
+Private m_dataBitCapacity As Long
+Private m_dataBitCounter  As Long
 
-Private m_segments          As Collection ' Item : IQRCodeEncoder
-Private m_segmentCounter    As Object ' Is Scripting.Dictionary Key : EncodingMode, Item : Long
+Private m_segments       As Collection ' Item : IQRCodeEncoder
+Private m_segmentCounter As Object ' Is Scripting.Dictionary Key : EncodingMode, Item : Long
 
 Private m_index As Long
 
@@ -56,7 +57,7 @@ Friend Sub Init(ByVal parentObj As Symbols)
     Call m_segmentCounter.Add(EncodingMode.EIGHT_BIT_BYTE, 0)
     Call m_segmentCounter.Add(EncodingMode.KANJI, 0)
 
-    If parentObj.StructuredAppendAllowed Then
+    If parentObj.StructuredAppend Then
         m_dataBitCapacity = m_dataBitCapacity - StructuredAppend.HEADER_LENGTH
     End If
 End Sub
@@ -100,7 +101,25 @@ End Function
 Friend Function TrySetEncodingMode(ByVal encMode As EncodingMode, _
                                    ByVal c As String) As Boolean
     Dim enc As IQRCodeEncoder
-    Set enc = Encoder.Create(encMode, m_parent.ByteModeCharset)
+
+    Select Case encMode
+        Case EncodingMode.NUMERIC
+            Set enc = New NumericEncoder
+        Case EncodingMode.ALPHA_NUMERIC
+            Set enc = New AlphanumericEncoder
+        Case EncodingMode.EIGHT_BIT_BYTE
+            Set enc = New ByteEncoder
+            Call enc.Init(m_parent.Encoding)
+        Case EncodingMode.KANJI
+            If Charset.IsJP(m_parent.Encoding.Charset) Then
+                Set enc = New KanjiEncoder
+                Call enc.Init(m_parent.Encoding)
+            Else
+                Call Err.Raise(51)
+            End If
+        Case Else
+            Call Err.Raise(5)
+    End Select
 
     Dim bitLength As Long
     bitLength = enc.GetCodewordBitLength(c)
@@ -149,7 +168,7 @@ Private Sub SelectVersion()
         m_parent.ErrorCorrectionLevel, m_currVersion)
     m_parent.MinVersion = m_currVersion
 
-    If m_parent.StructuredAppendAllowed Then
+    If m_parent.StructuredAppend Then
         m_dataBitCapacity = m_dataBitCapacity - StructuredAppend.HEADER_LENGTH
     End If
 End Sub
@@ -238,10 +257,10 @@ Private Function BuildErrorCorrectionBlock(ByRef dataBlock() As Variant) As Vari
     Dim gp() As Variant
     gp = GeneratorPolynomials.Item(numECCodewords)
 
-    Dim eccIdx      As Long
-    Dim blockIdx    As Long
-    Dim data()      As Long
-    Dim exp         As Long
+    Dim eccIdx   As Long
+    Dim blockIdx As Long
+    Dim data()   As Long
+    Dim exp      As Long
 
     For blockIdx = 0 To UBound(dataBlock)
         ReDim data(UBound(dataBlock(blockIdx)) + UBound(ret(blockIdx)) + 1)
@@ -332,8 +351,7 @@ Private Function GetEncodingRegionBytes() As Byte()
 End Function
 
 Private Function GetMessageBytes() As Byte()
-    Dim bs As BitSequence
-    Set bs = New BitSequence
+    Dim bs As New BitSequence
 
     If m_parent.Count > 1 Then
         Call WriteStructuredAppendHeader(bs)
@@ -354,7 +372,7 @@ Private Sub WriteStructuredAppendHeader(ByVal bs As BitSequence)
                    SymbolSequenceIndicator.POSITION_LENGTH)
     Call bs.Append(m_parent.Count - 1, _
                    SymbolSequenceIndicator.TOTAL_NUMBER_LENGTH)
-    Call bs.Append(m_parent.StructuredAppendParity, _
+    Call bs.Append(m_parent.Parity, _
                    StructuredAppend.PARITY_DATA_LENGTH)
 End Sub
 
@@ -457,6 +475,8 @@ Private Function GetModuleMatrix() As Variant()
 End Function
 
 Private Sub PlaceSymbolChar(ByRef moduleMatrix() As Variant)
+    Const VAL As Long = Values.WORD
+
     Dim data() As Byte
     data = GetEncodingRegionBytes()
 
@@ -479,8 +499,8 @@ Private Sub PlaceSymbolChar(ByRef moduleMatrix() As Variant)
         bitPos = 7
 
         Do While bitPos >= 0
-            If moduleMatrix(r)(c) = 0 Then
-                moduleMatrix(r)(c) = IIf((v And 2 ^ bitPos) > 0, 1, -1)
+            If moduleMatrix(r)(c) = Values.BLANK Then
+                moduleMatrix(r)(c) = IIf((v And 2 ^ bitPos) > 0, VAL, -VAL)
                 bitPos = bitPos - 1
             End If
 
@@ -560,8 +580,7 @@ Private Function GetBitmap1bpp(Optional ByVal moduleSize As Long = DEFAULT_MODUL
     Dim offset As Long
     offset = 0
 
-    Dim bs As BitSequence
-    Set bs = New BitSequence
+    Dim bs As New BitSequence
 
     Dim r As Long
     Dim i As Long
@@ -572,7 +591,7 @@ Private Function GetBitmap1bpp(Optional ByVal moduleSize As Long = DEFAULT_MODUL
         Call bs.Clear
 
         For Each v In moduleMatrix(r)
-            pixelColor = IIf(v > 0, 0, 1)
+            pixelColor = IIf(Values.IsDark(v), 0, 1)
 
             For i = 1 To moduleSize
                 Call bs.Append(pixelColor, 1)
@@ -642,7 +661,7 @@ Private Function GetBitmap24bpp(Optional ByVal moduleSize As Long = DEFAULT_MODU
         idx = 0
 
         For Each v In moduleMatrix(r)
-            colorRGB = IIf(v > 0, foreColorRGB, backColorRGB)
+            colorRGB = IIf(Values.IsDark(v), foreColorRGB, backColorRGB)
 
             For i = 1 To moduleSize
                 bitmapRow(idx + 0) = CByte((colorRGB And &HFF0000) \ 2 ^ 16) ' B
@@ -666,11 +685,11 @@ Public Function GetBitmap(Optional ByVal moduleSize As Long = DEFAULT_MODULE_SIZ
                           Optional ByVal foreRgb As String = ColorCode.BLACK, _
                           Optional ByVal backRgb As String = ColorCode.WHITE) As Byte()
     If m_dataBitCounter = 0 Then Call Err.Raise(51)
-    
-    If moduleSize < 1 Then Call Err.Raise(5)
+
+    If moduleSize < MIN_MODULE_SIZE Then Call Err.Raise(5)
     If ColorCode.IsWebColor(foreRgb) = False Then Call Err.Raise(5)
     If ColorCode.IsWebColor(backRgb) = False Then Call Err.Raise(5)
-    
+
     If monochrome Then
         GetBitmap = GetBitmap1bpp(moduleSize, foreRgb, backRgb)
     Else
@@ -683,11 +702,11 @@ Public Function GetPicture(Optional ByVal moduleSize As Long = DEFAULT_MODULE_SI
                            Optional ByVal foreRgb As String = ColorCode.BLACK, _
                            Optional ByVal backRgb As String = ColorCode.WHITE) As stdole.IPictureDisp
     If m_dataBitCounter = 0 Then Call Err.Raise(51)
-    
-    If moduleSize < 1 Then Call Err.Raise(5)
+
+    If moduleSize < MIN_MODULE_SIZE Then Call Err.Raise(5)
     If ColorCode.IsWebColor(foreRgb) = False Then Call Err.Raise(5)
     If ColorCode.IsWebColor(backRgb) = False Then Call Err.Raise(5)
-    
+
     Dim dibData() As Byte
 
     If monochrome Then
@@ -705,12 +724,12 @@ Public Sub SaveBitmap(ByVal filePath As String, _
                       Optional ByVal foreRgb As String = ColorCode.BLACK, _
                       Optional ByVal backRgb As String = ColorCode.WHITE)
     If m_dataBitCounter = 0 Then Call Err.Raise(51)
-                      
+
     If Len(filePath) = 0 Then Call Err.Raise(5)
-    If moduleSize < 1 Then Call Err.Raise(5)
+    If moduleSize < MIN_MODULE_SIZE Then Call Err.Raise(5)
     If ColorCode.IsWebColor(foreRgb) = False Then Call Err.Raise(5)
     If ColorCode.IsWebColor(backRgb) = False Then Call Err.Raise(5)
-    
+
     Dim bitmapBytes() As Byte
 
     If monochrome Then
@@ -731,11 +750,11 @@ Public Sub SetToClipboard(Optional ByVal moduleSize As Long = DEFAULT_MODULE_SIZ
                           Optional ByVal foreRgb As String = ColorCode.BLACK, _
                           Optional ByVal backRgb As String = ColorCode.WHITE)
     If m_dataBitCounter = 0 Then Call Err.Raise(51)
-    
-    If moduleSize < 1 Then Call Err.Raise(5)
+
+    If moduleSize < MIN_MODULE_SIZE Then Call Err.Raise(5)
     If ColorCode.IsWebColor(foreRgb) = False Then Call Err.Raise(5)
     If ColorCode.IsWebColor(backRgb) = False Then Call Err.Raise(5)
-    
+
     Dim bitmapBytes() As Byte
     bitmapBytes = GetBitmap24bpp(moduleSize, foreRgb, backRgb)
 
@@ -746,11 +765,11 @@ Public Sub SaveSvg(ByVal filePath As String, _
                    Optional ByVal moduleSize As Long = DEFAULT_MODULE_SIZE, _
                    Optional ByVal foreRgb As String = BLACK)
     If m_dataBitCounter = 0 Then Call Err.Raise(51)
-    
+
     If Len(filePath) = 0 Then Call Err.Raise(5)
-    If moduleSize < 2 Then Call Err.Raise(5)
+    If moduleSize < MIN_MODULE_SIZE Then Call Err.Raise(5)
     If ColorCode.IsWebColor(foreRgb) = False Then Call Err.Raise(5)
-    
+
     Dim svg As String
     svg = GetSvg(moduleSize, foreRgb)
     Dim svgFile As String
@@ -765,16 +784,15 @@ Public Sub SaveSvg(ByVal filePath As String, _
     Open filePath For Output As #fNum Len = &H7FFF
     Print #fNum, svgFile
     Close #fNum
-
 End Sub
 
 Public Function GetSvg(Optional ByVal moduleSize As Long = DEFAULT_MODULE_SIZE, _
                        Optional ByVal foreRgb As String = BLACK) As String
     If m_dataBitCounter = 0 Then Call Err.Raise(51)
-    
-    If moduleSize < 2 Then Call Err.Raise(5)
+
+    If moduleSize < MIN_MODULE_SIZE Then Call Err.Raise(5)
     If ColorCode.IsWebColor(foreRgb) = False Then Call Err.Raise(5)
-    
+
     Dim moduleMatrix() As Variant
     moduleMatrix = QuietZone.Place(GetModuleMatrix())
 
@@ -783,59 +801,58 @@ Public Function GetSvg(Optional ByVal moduleSize As Long = DEFAULT_MODULE_SIZE, 
 
     Dim imageHeight As Long
     imageHeight = imageWidth
-    
+
     Dim img() As Variant
     ReDim img(imageHeight - 1)
-    
+
     Dim imgRow() As Long
-    
+
     Dim r As Long
     Dim c As Long
     Dim i As Long
     Dim j As Long
     Dim v As Variant
-    
+
     Dim rowArray As Variant
     For Each rowArray In moduleMatrix
         ReDim imgRow(imageWidth - 1)
         c = 0
         For Each v In rowArray
             For j = 1 To moduleSize
-                imgRow(c) = v
+                imgRow(c) = IIf(Values.IsDark(v), 1, 0)
                 c = c + 1
             Next
         Next
-        
+
         For i = 1 To moduleSize
             img(r) = imgRow
             r = r + 1
         Next
     Next
-    
-    Dim gps() As Variant
-    gps = GraphicPath.FindContours(img)
-    
-    Dim buf As List
-    Set buf = New List
-    
+
+    Dim gpPaths() As Variant
+    gpPaths = GraphicPath.FindContours(img)
+
+    Dim buf As New List
+
     Dim indent As String
     indent = String(11, " ")
 
-    Dim gp As Variant
+    Dim gpPath As Variant
     Dim k As Long
-    
-    For Each gp In gps
+
+    For Each gpPath In gpPaths
         Call buf.Add(indent & "M ")
 
-        For k = 0 To UBound(gp)
-            Call buf.Add(CStr(gp(k).x) & "," & CStr(gp(k).y) & " ")
+        For k = 0 To UBound(gpPath)
+            Call buf.Add(CStr(gpPath(k).x) & "," & CStr(gpPath(k).y) & " ")
         Next
         Call buf.Add("Z" & vbNewLine)
     Next
 
     Dim data As String
     data = Trim$(Join(buf.Items(), ""))
-    data = Strings.Left$(data, Len(data) - Len(vbNewLine))
+    data = Left$(data, Len(data) - Len(vbNewLine))
     Dim svg As String
     svg = _
         "<svg xmlns='http://www.w3.org/2000/svg'" & vbNewLine & _

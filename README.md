@@ -47,11 +47,11 @@ Set sbls = CreateSymbols(maxVer:=10)
 ```
 
 ### 例４．8ビットバイトモードで使用する文字コードを指定する
-CreateSymbols関数の byteModeCharsetName 引数を設定してSymbolsオブジェクトを生成します。
+CreateSymbols関数の charsetName 引数を設定してSymbolsオブジェクトを生成します。
 
 ```VBA
 Dim sbls As Symbols
-Set sbls = CreateSymbols(byteModeCharsetName:="utf-8")
+Set sbls = CreateSymbols(charsetName:="utf-8")
 ```
 
 ### 例５．分割QRコードを作成する
@@ -81,16 +81,16 @@ Set sbls = CreateSymbols()
 sbls.AppendText "012345abcdefg"
     
 ' 24bpp DIB
-sbls(0).SaveBitmap "D:\QRcode.bmp"
+sbls(0).SaveBitmap "QRcode.bmp"
     
 ' 10 pixels per module
-sbls(0).SaveBitmap "D:\QRcode.bmp", moduleSize:=10
+sbls(0).SaveBitmap "QRcode.bmp", moduleSize:=10
     
 ' Specify foreground and background colors.
-sbls(0).SaveBitmap "D:\QRcode.bmp", foreRgb:="#0000FF", backRgb:="#FFFF00"
+sbls(0).SaveBitmap "QRcode.bmp", foreRgb:="#0000FF", backRgb:="#FFFF00"
     
 ' 1bpp DIB
-sbls(0).SaveBitmap "D:\QRcode.bmp", monochrome:=True
+sbls(0).SaveBitmap "QRcode.bmp", monochrome:=True
 ```
 
 ### 例７．SVGファイルへ保存する
@@ -101,7 +101,7 @@ Dim sbls As Symbols
 Set sbls = CreateSymbols()
 sbls.AppendText "012345abcdefg"
     
-sbls(0).SaveSvg "D:\QRcode.svg"    
+sbls(0).SaveSvg "QRcode.svg"    
 ```
 
 ### 例８．SVGデータを取得する
@@ -113,7 +113,7 @@ Set sbls = CreateSymbols()
 sbls.AppendText "012345abcdefg"
     
 Dim svg As String
-svg = sbls(0).GetSvg("D:\QRcode.svg")
+svg = sbls(0).GetSvg()
 ```
 
 ### 例９．クリップボードへ格納する

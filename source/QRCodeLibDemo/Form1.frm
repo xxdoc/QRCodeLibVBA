@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} Form1 
    Caption         =   "QR Code"
-   ClientHeight    =   8910
+   ClientHeight    =   9225
    ClientLeft      =   45
    ClientTop       =   390
    ClientWidth     =   10590
@@ -16,12 +16,12 @@ Attribute VB_Exposed = False
 Option Explicit
 
 
-Private Const DEFAULT_MODULE_SIZE As Long = 4
+Private Const DEFAULT_MODULE_SIZE As Long = 5
 Private Const DEFAULT_VERSION     As Long = 40
-Private Const IMAGE_WIDTH         As Long = 122
-Private Const IMAGE_HEIGHT        As Long = 122
+Private Const IMAGE_WIDTH         As Long = 166
+Private Const IMAGE_HEIGHT        As Long = 166
 Private Const IMAGE_MARGIN        As Long = 2
-
+Private Const COL_COUNT           As Long = 3
 
 Private Sub Update_fraQRCodeImage()
     btnSave.Enabled = False
@@ -32,24 +32,24 @@ Private Sub Update_fraQRCodeImage()
 
     Dim ecLevel As ErrorCorrectionLevel
     ecLevel = cmbErrorCorrectionLevel.Value
-    
+
     Dim sz As Long
     sz = CLng(txtModuleSize.Text)
-    
+
     Dim foreRGB As String
     foreRGB = "#" & txtForeColor.Text
-    
+
     Dim backRGB As String
     backRGB = "#" & txtBackColor.Text
-    
+
     Dim maxVer As Long
     maxVer = CLng(cmbMaxVersion.Text)
-    
+
     Dim structAppend As Boolean
     structAppend = chkStructuredAppend.Value
-    
+
     Dim encMode As String
-    encMode = cmbEncoding.Value
+    encMode = cmbCharset.Value
 
 On Error GoTo Catch
     Dim sbls As QRCodeLib.Symbols
@@ -65,8 +65,8 @@ On Error GoTo Catch
         Set sbl = sbls(idx)
         Set ctl = Me.fraQRCodeImage.Controls.Add("Forms.Image.1")
         With ctl
-            .Left = (IMAGE_WIDTH + IMAGE_MARGIN) * (idx Mod 4) + IMAGE_MARGIN
-            .Top = (IMAGE_WIDTH + IMAGE_MARGIN) * (idx \ 4) + IMAGE_MARGIN
+            .Left = (IMAGE_WIDTH + IMAGE_MARGIN) * (idx Mod COL_COUNT) + IMAGE_MARGIN
+            .Top = (IMAGE_WIDTH + IMAGE_MARGIN) * (idx \ COL_COUNT) + IMAGE_MARGIN
             .Width = IMAGE_WIDTH
             .Height = IMAGE_HEIGHT
         End With
@@ -78,7 +78,7 @@ On Error GoTo Catch
     Next
 
     fraQRCodeImage.ScrollHeight = _
-        CLng((sbls.Count + 3) \ 4) * (IMAGE_HEIGHT + IMAGE_MARGIN) + IMAGE_MARGIN
+        CLng((sbls.Count + 3) \ COL_COUNT) * (IMAGE_HEIGHT + IMAGE_MARGIN) + IMAGE_MARGIN
     btnSave.Enabled = txtData.TextLength > 0
 
 Finally:
@@ -98,24 +98,24 @@ End Sub
 Private Sub btnSave_Click()
     Dim ecLevel As ErrorCorrectionLevel
     ecLevel = cmbErrorCorrectionLevel.Value
-    
+
     Dim sz As Long
     sz = CLng(txtModuleSize.Text)
-    
+
     Dim foreRGB As String
     foreRGB = "#" & txtForeColor.Text
-    
+
     Dim backRGB As String
     backRGB = "#" & txtBackColor.Text
-    
+
     Dim maxVer As Long
     maxVer = CLng(cmbMaxVersion.Text)
-    
+
     Dim structAppend As Boolean
     structAppend = chkStructuredAppend.Value
-    
+
     Dim encMode As String
-    encMode = cmbEncoding.Value
+    encMode = cmbCharset.Value
 
     Dim fs As New FileSystemObject
 
@@ -126,10 +126,10 @@ Private Sub btnSave_Click()
     fBaseName = Application.GetSaveAsFilename("", fileFilters)
 
     If VarType(fBaseName) = vbBoolean Then Exit Sub
-    
+
     Dim ext As String
     ext = "." & fs.GetExtensionName(fBaseName)
-    
+
     fBaseName = fs.GetParentFolderName(fBaseName) & "\" & fs.GetBaseName(fBaseName)
 
 On Error GoTo Catch
@@ -153,7 +153,7 @@ On Error GoTo Catch
         If fs.FileExists(filePath) Then
             Call fs.DeleteFile(filePath)
         End If
-        
+
         Select Case LCase(ext)
             Case ".bmp"
                 Call sbl.SaveBitmap(filePath, sz, True, foreRGB, backRGB)
@@ -177,7 +177,7 @@ Private Sub chkStructuredAppend_Change()
     Call Update_fraQRCodeImage
 End Sub
 
-Private Sub cmbEncoding_Change()
+Private Sub cmbCharset_Change()
     Call Update_fraQRCodeImage
 End Sub
 
@@ -218,12 +218,12 @@ Private Sub txtModuleSize_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
         Call Set_txtModuleSize(DEFAULT_MODULE_SIZE)
     End If
 
-    If CLng(txtModuleSize.Text) = 0 Then
-        Call Set_txtModuleSize(1)
+    If CLng(txtModuleSize.Text) < 2 Then
+        Call Set_txtModuleSize(2)
     End If
 
-    If CLng(txtModuleSize.Text) > 20 Then
-        Call Set_txtModuleSize(20)
+    If CLng(txtModuleSize.Text) > 100 Then
+        Call Set_txtModuleSize(100)
     End If
 
     spbModuleSize.Value = CLng(txtModuleSize.Text)
@@ -244,11 +244,11 @@ Private Sub txtModuleSize_KeyDown( _
 
     Select Case KeyCode
         Case 38
-            If 1 <= sz And sz < 20 Then
+            If 2 <= sz And sz < 20 Then
                 txtModuleSize.Text = CStr(sz + 1)
             End If
         Case 40
-            If 1 < sz And sz <= 20 Then
+            If 2 < sz And sz <= 20 Then
                 txtModuleSize.Text = CStr(sz - 1)
             End If
     End Select
@@ -280,12 +280,12 @@ Private Sub UserForm_Initialize()
         .ListIndex = 1
     End With
 
-    Call cmbEncoding.AddItem("Shift_JIS")
-    Call cmbEncoding.AddItem("UTF-8")
-    cmbEncoding.ListIndex = 0
+    Call cmbCharset.AddItem("Shift_JIS")
+    Call cmbCharset.AddItem("UTF-8")
+    cmbCharset.ListIndex = 0
 
     Dim i As Long
-    For i = 1 To 40
+    For i = QRCodeLib.Constants.MIN_VERSION To QRCodeLib.Constants.MAX_VERSION
         Call cmbMaxVersion.AddItem(i)
     Next
 

@@ -17,16 +17,19 @@ Private m_bitCounter    As Long
 Private m_encAlpha  As IQRCodeEncoder
 Private m_encKanji  As IQRCodeEncoder
 
-Private m_textEncoding  As TextEncoding
+Private m_encoding  As Encoding
 
 Private Sub Class_Initialize()
     Set m_encAlpha = New AlphanumericEncoder
-    Set m_encKanji = New KanjiEncoder
-    Set m_textEncoding = New TextEncoding
 End Sub
 
-Public Sub Init(ByVal charsetName As String)
-    Call m_textEncoding.Init(charsetName)
+Private Sub IQRCodeEncoder_Init(ByVal charEncoding As Encoding)
+    Set m_encoding = charEncoding
+
+    If Charset.IsJP(charEncoding.Charset) Then
+        Set m_encKanji = New KanjiEncoder
+        Call m_encKanji.Init(charEncoding)
+    End If
 End Sub
 
 Private Property Get IQRCodeEncoder_BitCount() As Long
@@ -47,10 +50,10 @@ End Property
 
 Private Function IQRCodeEncoder_Append(ByVal c As String) As Long
     Dim charBytes() As Byte
-    charBytes = m_textEncoding.GetBytes(c)
+    charBytes = m_encoding.GetBytes(c)
 
     Dim ret As Long
-    Dim v   As Variant
+    Dim v As Variant
 
     For Each v In charBytes
         If m_charCounter = 0 Then
@@ -70,7 +73,7 @@ End Function
 
 Private Function IQRCodeEncoder_GetCodewordBitLength(ByVal c As String) As Long
     Dim charBytes() As Byte
-    charBytes = m_textEncoding.GetBytes(c)
+    charBytes = m_encoding.GetBytes(c)
 
     IQRCodeEncoder_GetCodewordBitLength = (UBound(charBytes) + 1) * 8
 End Function
@@ -89,15 +92,12 @@ Private Function IQRCodeEncoder_InExclusiveSubset(ByVal c As String) As Boolean
         Exit Function
     End If
 
-    If m_encKanji.InSubset(c) Then
-        IQRCodeEncoder_InExclusiveSubset = False
-        Exit Function
+    If Not (m_encKanji Is Nothing) Then
+        If m_encKanji.InSubset(c) Then
+            IQRCodeEncoder_InExclusiveSubset = False
+            Exit Function
+        End If
     End If
 
-    If IQRCodeEncoder_InSubset(c) Then
-        IQRCodeEncoder_InExclusiveSubset = True
-        Exit Function
-    End If
-
-    IQRCodeEncoder_InExclusiveSubset = False
+    IQRCodeEncoder_InExclusiveSubset = IQRCodeEncoder_InSubset(c)
 End Function
